@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowUpRight,
@@ -90,6 +91,25 @@ export function DashboardPage() {
     .sort((a, b) => a.start.localeCompare(b.start));
 
   const recentStudents = students.slice(0, 10);
+
+  const categoryAmounts: Record<string, number> = {
+    DevOps: 1_500_000,
+    Dizayn: 890_000,
+    Mobil: 990_000,
+    "Data Science": 1_200_000,
+  };
+  const fallbackAmounts = [490_000, 790_000, 690_000];
+
+  const studentAmounts = useMemo(
+    () =>
+      recentStudents.map((s, i) => {
+        const course = groups.find((g) => g.id === s.groupId);
+        return course
+          ? (categoryAmounts[course.category] ?? fallbackAmounts[i % 3])
+          : 490_000;
+      }),
+    [],
+  );
 
   return (
     <div className="space-y-6">
@@ -294,9 +314,8 @@ export function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recentStudents.map((s) => {
-                  const course = groups.find((g) => g.id === s.groupId);
-                  const amount = course ? (course.category === "DevOps" ? 1_500_000 : course.category === "Dizayn" ? 890_000 : course.category === "Mobil" ? 990_000 : course.category === "Data Science" ? 1_200_000 : [490_000, 790_000, 690_000][Math.floor(Math.random() * 3)]) : 490_000;
+                {recentStudents.map((s, idx) => {
+                  const amount = studentAmounts[idx];
                   return (
                     <TableRow key={s.id}>
                       <TableCell className="pl-6 font-medium">{s.name}</TableCell>

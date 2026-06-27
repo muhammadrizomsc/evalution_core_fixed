@@ -99,15 +99,15 @@ export function NarxlarPage() {
         </p>
       </div>
 
-      <div className="mx-auto grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="mx-auto grid max-w-5xl gap-6 pt-5 sm:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => (
           <Card
             key={plan.name}
-            className={`relative rounded-2xl shadow-xs ${plan.popular ? "border-2 border-blue-500 shadow-blue-100" : "border-slate-200"}`}
+            className={`relative overflow-visible rounded-2xl shadow-xs ${plan.popular ? "border-2 border-blue-500 shadow-blue-100" : "border-slate-200"}`}
           >
             {plan.popular && (
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <Badge className="bg-blue-600 text-white shadow-none">Eng mashhur</Badge>
+              <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-10">
+                <Badge className="bg-blue-600 text-white shadow-md whitespace-nowrap">Eng mashhur</Badge>
               </div>
             )}
             <CardContent className="p-6">

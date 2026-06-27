@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, Send } from "lucide-react";
+import { CheckCircle2, Send, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -19,14 +19,43 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api";
 
 export function ContactForm() {
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [subject, setSubject] = useState("kurs");
 
-  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSubmitted(true);
-    event.currentTarget.reset();
+    setError(null);
+    setLoading(true);
+
+    const form = event.currentTarget;
+    const data = new FormData(form);
+
+    const firstName = data.get("firstName") as string;
+    const lastName = data.get("lastName") as string;
+    const email = data.get("email") as string;
+    const phone = data.get("phone") as string;
+    const message = data.get("message") as string;
+
+    try {
+      await api.post("/public/contact", {
+        name: `${firstName}${lastName ? " " + lastName : ""}`.trim(),
+        email,
+        phone: phone || undefined,
+        subject,
+        message,
+      });
+      setSubmitted(true);
+      form.reset();
+    } catch {
+      setError("Xabar yuborishda xatolik yuz berdi. Qayta urinib ko'ring.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -39,14 +68,14 @@ export function ContactForm() {
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="first-name">
+              <Label htmlFor="firstName">
                 Ism <span className="text-destructive">*</span>
               </Label>
-              <Input id="first-name" placeholder="Aziz" className="h-10" required />
+              <Input id="firstName" name="firstName" placeholder="Aziz" className="h-10" required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="last-name">Familiya</Label>
-              <Input id="last-name" placeholder="Karimov" className="h-10" />
+              <Label htmlFor="lastName">Familiya</Label>
+              <Input id="lastName" name="lastName" placeholder="Karimov" className="h-10" />
             </div>
           </div>
 
@@ -57,6 +86,7 @@ export function ContactForm() {
               </Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 placeholder="aziz@example.uz"
                 className="h-10"
@@ -65,13 +95,13 @@ export function ContactForm() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="phone">Telefon</Label>
-              <Input id="phone" type="tel" placeholder="+998 90 123 45 67" className="h-10" />
+              <Input id="phone" name="phone" type="tel" placeholder="+998 90 123 45 67" className="h-10" />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label htmlFor="subject">Mavzu</Label>
-            <Select defaultValue="kurs">
+            <Select value={subject} onValueChange={setSubject}>
               <SelectTrigger id="subject" className="h-10 w-full">
                 <SelectValue placeholder="Mavzuni tanlang" />
               </SelectTrigger>
@@ -90,6 +120,7 @@ export function ContactForm() {
             </Label>
             <Textarea
               id="message"
+              name="message"
               placeholder="Xabaringizni shu yerda yozing..."
               className="min-h-36"
               required
@@ -113,10 +144,17 @@ export function ContactForm() {
             </div>
           )}
 
+          {error && (
+            <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2.5 text-sm text-red-700">
+              <AlertCircle className="size-4 shrink-0" />
+              {error}
+            </div>
+          )}
+
           <div className="flex justify-end">
-            <Button type="submit" size="lg" className="h-10 px-5">
-              Xabarni yuborish
-              <Send data-icon="inline-end" />
+            <Button type="submit" size="lg" className="h-10 px-5" disabled={loading}>
+              {loading ? "Yuborilmoqda..." : "Xabarni yuborish"}
+              {!loading && <Send data-icon="inline-end" />}
             </Button>
           </div>
         </form>

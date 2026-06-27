@@ -14,22 +14,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-
-const profile = {
-  fullName: "Bobur Tojiev",
-  firstName: "Bobur",
-  lastName: "Tojiev",
-  studentId: "ST-0123",
-  status: "Aktiv",
-  memberSince: "2025-yil sentyabrdan beri",
-  email: "bobur@example.uz",
-  phone: "+998 90 123 45 67",
-  city: "Toshkent, Chilonzor tumani",
-  birthDate: "14-mart, 2004",
-  gender: "Erkak",
-  address: "Toshkent sh., Chilonzor tumani, 19-mavze",
-  avatar: "https://i.pravatar.cc/150?img=11",
-};
+import { useAuthStore } from "@/stores/auth-store";
+import { getInitials } from "@/lib/data";
 
 const professional = {
   direction: "Frontend dasturlash",
@@ -69,29 +55,36 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export function ProfilPage() {
+  const user = useAuthStore((s) => s.user);
+  const fullName = user ? `${user.firstName} ${user.lastName}` : "Foydalanuvchi";
+  const email = user?.email ?? "";
+  const phone = user?.phone ?? "";
+  const avatarUrl = user?.avatarUrl ?? "";
+  const studentId = user?.student?.studentId ?? "ST-0000";
+
   return (
     <div className="space-y-6">
       <Card className="rounded-xl border-slate-200 shadow-xs">
         <CardContent className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-5">
             <Avatar className="size-20 border-2 border-white shadow-md">
-              <AvatarImage src={profile.avatar} alt={profile.fullName} />
-              <AvatarFallback className="text-xl font-bold">BT</AvatarFallback>
+              {avatarUrl && <AvatarImage src={avatarUrl} alt={fullName} />}
+              <AvatarFallback className="text-xl font-bold">{getInitials(fullName)}</AvatarFallback>
             </Avatar>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900">{profile.fullName}</h1>
+                <h1 className="text-xl font-bold text-slate-900">{fullName}</h1>
                 <Badge className="bg-emerald-50 text-emerald-700 shadow-none hover:bg-emerald-50">
-                  {profile.status}
+                  Aktiv
                 </Badge>
               </div>
               <p className="mt-0.5 text-sm text-slate-500">
-                Talaba ID: <span className="font-semibold text-slate-700">{profile.studentId}</span>{" · "}{profile.memberSince}
+                Talaba ID: <span className="font-semibold text-slate-700">{studentId}</span>
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
-                <span className="flex items-center gap-1.5"><Mail className="size-3.5" />{profile.email}</span>
-                <span className="flex items-center gap-1.5"><Phone className="size-3.5" />{profile.phone}</span>
-                <span className="flex items-center gap-1.5"><MapPin className="size-3.5" />{profile.city}</span>
+                {email && <span className="flex items-center gap-1.5"><Mail className="size-3.5" />{email}</span>}
+                {phone && <span className="flex items-center gap-1.5"><Phone className="size-3.5" />{phone}</span>}
+                <span className="flex items-center gap-1.5"><MapPin className="size-3.5" />Toshkent</span>
               </div>
             </div>
           </div>
@@ -123,13 +116,10 @@ export function ProfilPage() {
           <CardContent className="p-6">
             <h2 className="text-lg font-semibold text-slate-900">Shaxsiy ma'lumotlar</h2>
             <div className="mt-4">
-              <InfoRow label="Ism" value={profile.firstName} />
-              <InfoRow label="Familiya" value={profile.lastName} />
-              <InfoRow label="Tug'ilgan sana" value={profile.birthDate} />
-              <InfoRow label="Jins" value={profile.gender} />
-              <InfoRow label="Email" value={profile.email} />
-              <InfoRow label="Telefon" value={profile.phone} />
-              <InfoRow label="Manzil" value={profile.address} />
+              <InfoRow label="Ism" value={user?.firstName ?? "—"} />
+              <InfoRow label="Familiya" value={user?.lastName ?? "—"} />
+              {email && <InfoRow label="Email" value={email} />}
+              {phone && <InfoRow label="Telefon" value={phone} />}
             </div>
           </CardContent>
         </Card>

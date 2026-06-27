@@ -25,6 +25,8 @@ interface AuthState {
   fetchMe: () => Promise<void>;
 }
 
+let fetchMeGeneration = 0;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   loading: false,
@@ -33,21 +35,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setUser: (user) => set({ user }),
 
   login: async (identifier, password) => {
+    // Cancel any in-flight fetchMe
+    fetchMeGeneration++;
     const { data } = await api.post("/auth/login", { identifier, password });
-    const { accessToken, refreshToken, user } = data.data;
-    localStorage.setItem("accessToken", accessToken);
-    localStorage.setItem("refreshToken", refreshToken);
-    set({ user, initialized: true });
+    const { user, tokens } = data.data;
+    localStorage.setItem("accessToken", tokens.accessToken);
+    localStorage.setItem("refreshToken", tokens.refreshToken);
+    set({ user, initialized: true, loading: false });
     return user;
   },
 
   logout: async () => {
+    fetchMeGeneration++;
     try {
       await api.post("/auth/logout");
     } catch {}
     localStorage.removeItem("accessToken");
     localStorage.removeItem("refreshToken");
-    set({ user: null, initialized: true });
+    set({ user: null, initialized: true, loading: false });
   },
 
   fetchMe: async () => {
@@ -56,14 +61,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: null, initialized: true, loading: false });
       return;
     }
+    const gen = ++fetchMeGeneration;
     set({ loading: true });
     try {
       const { data } = await api.get("/auth/me");
-      set({ user: data.data, initialized: true, loading: false });
+      // Only apply result if no login/logout happened in the meantime
+      if (gen === fetchMeGeneration) {
+        set({ user: data.data, initialized: true, loading: false });
+      }
     } catch {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      set({ user: null, initialized: true, loading: false });
+      if (gen === fetchMeGeneration) {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        set({ user: null, initialized: true, loading: false });
+      }
     }
   },
 }));

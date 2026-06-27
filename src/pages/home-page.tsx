@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -18,18 +19,31 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CourseCard } from "@/components/site/course-card";
 import { TeacherCard } from "@/components/site/teacher-card";
-import {
-  courses,
-  getInitials,
-  siteStats,
-  teachers,
-  testimonials,
-} from "@/lib/data";
+import { getInitials, type Course, type Teacher } from "@/lib/data";
 import { FaqAccordion } from "@/pages/faq-accordion";
+import { api } from "@/lib/api";
 
 const statIcons = [GraduationCap, BookOpen, Users, Briefcase];
+
+interface SiteStats {
+  totalStudents: number;
+  totalGraduates: number;
+  totalInstructors: number;
+  totalCourses: number;
+  totalCertificates: number;
+}
+
+interface Testimonial {
+  id: string;
+  name: string;
+  role: string;
+  avatar?: string;
+  rating: number;
+  text: string;
+}
 
 const benefits = [
   {
@@ -90,9 +104,77 @@ function SectionHeading({
 }
 
 export function HomePage() {
+  const [stats, setStats] = useState<SiteStats | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchAll() {
+      try {
+        const [statsRes, coursesRes, teachersRes, testimonialsRes] = await Promise.allSettled([
+          api.get<{ data: SiteStats }>("/public/stats"),
+          api.get<{ data: { items: Course[] } }>("/public/courses?featured=true&limit=8"),
+          api.get<{ data: { items: Teacher[] } }>("/public/instructors?limit=6"),
+          api.get<{ data: Testimonial[] }>("/public/testimonials?limit=6"),
+        ]);
+
+        if (statsRes.status === "fulfilled") setStats(statsRes.value.data.data);
+        if (coursesRes.status === "fulfilled") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const items = (coursesRes.value.data.data.items ?? []) as any[];
+          setCourses(items.map((c) => ({
+            slug: c.slug ?? c.id ?? "",
+            title: c.title ?? "",
+            excerpt: c.excerpt ?? c.description ?? c.shortDescription ?? "",
+            category: c.category ?? "Frontend",
+            image: c.image ?? c.thumbnailUrl ?? c.coverUrl ?? "",
+            price: c.price ?? 0,
+            durationMonths: c.durationMonths ?? c.duration ?? 1,
+            totalLessons: c.totalLessons ?? c.lessonsCount ?? 0,
+            rating: c.rating ?? 5.0,
+            reviewsCount: c.reviewsCount ?? 0,
+            instructor: c.instructor ?? { name: "", avatar: "" },
+            level: c.level ?? "Boshlang'ich",
+            featured: c.featured ?? false,
+          })));
+        }
+        if (teachersRes.status === "fulfilled") {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const items = (teachersRes.value.data.data.items ?? []) as any[];
+          setTeachers(items.map((t) => ({
+            id: t.id ?? "",
+            name: t.name ?? `${t.firstName ?? ""} ${t.lastName ?? ""}`.trim(),
+            role: t.role ?? t.position ?? t.specialty ?? "",
+            category: t.category ?? "Frontend",
+            bio: t.bio ?? t.description ?? t.about ?? "",
+            courses: t.courses ?? t.coursesCount ?? t.totalCourses ?? 0,
+            students: t.students ?? t.studentsCount ?? t.totalStudents ?? 0,
+            rating: t.rating ?? 5.0,
+            avatar: t.avatar ?? t.avatarUrl ?? t.photo ?? "",
+          })));
+        }
+        if (testimonialsRes.status === "fulfilled") setTestimonials(testimonialsRes.value.data.data ?? []);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchAll();
+  }, []);
+
+  const statItems = stats
+    ? [
+        { label: "Talabalar", value: `${stats.totalStudents}+` },
+        { label: "Kurslar", value: `${stats.totalCourses}+` },
+        { label: "O'qituvchilar", value: `${stats.totalInstructors}+` },
+        { label: "Bitiruvchilar", value: `${stats.totalGraduates}+` },
+      ]
+    : [];
+
   return (
     <div>
-      
+
       <section className="border-b bg-gradient-to-b from-blue-50 via-blue-50/60 to-white">
         <div className="mx-auto max-w-7xl px-4 pt-16 pb-24 sm:px-6 lg:px-8 lg:pt-20">
           <div className="grid items-center gap-10 lg:grid-cols-2">
@@ -141,40 +223,61 @@ export function HomePage() {
         </div>
       </section>
 
-      
+
       <section className="mx-auto -mt-12 max-w-5xl px-4 sm:px-6 lg:px-8">
         <Card className="py-6 shadow-lg">
           <CardContent className="grid grid-cols-2 gap-6 lg:grid-cols-4">
-            {siteStats.map((stat, i) => {
-              const Icon = statIcons[i] ?? GraduationCap;
-              return (
-                <div key={stat.label} className="flex items-center gap-3">
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Icon className="size-5" />
+            {loading
+              ? Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <Skeleton className="size-11 rounded-xl" />
+                    <div className="space-y-1">
+                      <Skeleton className="h-5 w-16" />
+                      <Skeleton className="h-4 w-24" />
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xl font-bold">{stat.value}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {stat.label}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
+                ))
+              : statItems.map((stat, i) => {
+                  const Icon = statIcons[i] ?? GraduationCap;
+                  return (
+                    <div key={stat.label} className="flex items-center gap-3">
+                      <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <Icon className="size-5" />
+                      </div>
+                      <div>
+                        <p className="text-xl font-bold">{stat.value}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {stat.label}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
           </CardContent>
         </Card>
       </section>
 
-      
+
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <SectionHeading
           title="Eng yaxshilar orasidan eng kerakli kursni tanlang"
           subtitle="Frontend'dan Data Science'gacha — har bir yo'nalishda amaliyotga asoslangan kurslar."
         />
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {courses.slice(0, 8).map((course) => (
-            <CourseCard key={course.slug} course={course} />
-          ))}
+          {loading
+            ? Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="rounded-xl border overflow-hidden">
+                  <Skeleton className="aspect-video w-full" />
+                  <div className="p-4 space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-4 w-1/2" />
+                    <Skeleton className="h-8 w-full mt-3" />
+                  </div>
+                </div>
+              ))
+            : courses.map((course) => (
+                <CourseCard key={course.slug} course={course} />
+              ))}
         </div>
         <div className="mt-10 text-center">
           <Button size="lg" variant="outline" className="h-11 px-6" asChild>
@@ -186,7 +289,7 @@ export function HomePage() {
         </div>
       </section>
 
-      
+
       <section className="border-y bg-blue-50/40">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <SectionHeading
@@ -214,16 +317,25 @@ export function HomePage() {
         </div>
       </section>
 
-      
+
       <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
         <SectionHeading
           title="Bizning o'qituvchilar"
           subtitle="Yetakchi kompaniyalarda ishlagan, o'z sohasining haqiqiy mutaxassislari sizga dars beradi."
         />
         <div className="mt-10 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {teachers.slice(0, 6).map((teacher) => (
-            <TeacherCard key={teacher.id} teacher={teacher} />
-          ))}
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="rounded-xl border p-6 flex flex-col items-center gap-3">
+                  <Skeleton className="size-24 rounded-full" />
+                  <Skeleton className="h-5 w-32" />
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-12 w-full" />
+                </div>
+              ))
+            : teachers.map((teacher) => (
+                <TeacherCard key={teacher.id} teacher={teacher} />
+              ))}
         </div>
         <div className="mt-10 text-center">
           <Button size="lg" variant="outline" className="h-11 px-6" asChild>
@@ -235,7 +347,7 @@ export function HomePage() {
         </div>
       </section>
 
-      
+
       <section className="border-y bg-blue-50/40">
         <div className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
           <SectionHeading
@@ -243,38 +355,46 @@ export function HomePage() {
             subtitle="Bitiruvchilarimiz bugun yetakchi kompaniyalarda ishlamoqda. Ularning tajribasi bilan tanishing."
           />
           <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-3">
-            {testimonials.map((t) => (
-              <Card key={t.name} className="transition-shadow hover:shadow-md">
-                <CardContent className="flex h-full flex-col gap-4">
-                  <div className="flex gap-0.5">
-                    {Array.from({ length: t.rating }).map((_, i) => (
-                      <Star
-                        key={i}
-                        className="size-4 fill-amber-400 text-amber-400"
-                      />
-                    ))}
+            {loading
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="rounded-xl border p-5 space-y-3">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="h-16 w-full" />
+                    <Skeleton className="h-8 w-full" />
                   </div>
-                  <p className="flex-1 text-sm leading-relaxed text-muted-foreground">
-                    &ldquo;{t.text}&rdquo;
-                  </p>
-                  <div className="flex items-center gap-3 border-t pt-4">
-                    <Avatar>
-                      <AvatarImage src={t.avatar} alt={t.name} />
-                      <AvatarFallback>{getInitials(t.name)}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="text-sm font-semibold">{t.name}</p>
-                      <p className="text-xs text-muted-foreground">{t.role}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                ))
+              : testimonials.map((t) => (
+                  <Card key={t.id ?? t.name} className="transition-shadow hover:shadow-md">
+                    <CardContent className="flex h-full flex-col gap-4">
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: t.rating }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className="size-4 fill-amber-400 text-amber-400"
+                          />
+                        ))}
+                      </div>
+                      <p className="flex-1 text-sm leading-relaxed text-muted-foreground">
+                        &ldquo;{t.text}&rdquo;
+                      </p>
+                      <div className="flex items-center gap-3 border-t pt-4">
+                        <Avatar>
+                          <AvatarImage src={t.avatar} alt={t.name} />
+                          <AvatarFallback>{getInitials(t.name)}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <p className="text-sm font-semibold">{t.name}</p>
+                          <p className="text-xs text-muted-foreground">{t.role}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
           </div>
         </div>
       </section>
 
-      
+
       <section className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
         <SectionHeading
           title="Ko'p beriladigan savollar"
@@ -285,7 +405,7 @@ export function HomePage() {
         </div>
       </section>
 
-      
+
       <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-600 to-purple-600">
           <div className="grid items-center gap-8 p-8 sm:p-12 lg:grid-cols-2 lg:p-16">

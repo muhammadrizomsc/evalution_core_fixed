@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Pagination,
   PaginationContent,
@@ -21,8 +22,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CourseCard } from "@/components/site/course-card";
-import { courses, type Category, type Course } from "@/lib/data";
+import { type Category, type Course } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 type Level = "Barchasi" | Course["level"];
 type Duration = "1-2 oy" | "3-5 oy" | "6+ oy";
@@ -30,25 +32,17 @@ type Sort = "popular" | "price-asc" | "price-desc" | "rating";
 
 const levels: Level[] = ["Barchasi", "Boshlovchi", "O'rtacha", "Mutaxassis"];
 const durations: Duration[] = ["1-2 oy", "3-5 oy", "6+ oy"];
+const allCategories: Category[] = [
+  "Frontend",
+  "Backend",
+  "Dizayn",
+  "Mobil",
+  "Data Science",
+  "Marketing",
+  "DevOps",
+];
 
-const categoryCounts = courses.reduce<Partial<Record<Category, number>>>(
-  (acc, c) => {
-    acc[c.category] = (acc[c.category] ?? 0) + 1;
-    return acc;
-  },
-  {}
-);
-const allCategories = Object.keys(categoryCounts) as Category[];
-
-function matchesDuration(course: Course, selected: Duration[]): boolean {
-  if (selected.length === 0) return true;
-  return selected.some((d) => {
-    if (d === "1-2 oy") return course.durationMonths <= 2;
-    if (d === "3-5 oy")
-      return course.durationMonths >= 3 && course.durationMonths <= 5;
-    return course.durationMonths >= 6;
-  });
-}
+const LIMIT = 12;
 
 export function CoursesExplorer() {
   const [query, setQuery] = useState("");
@@ -59,21 +53,44 @@ export function CoursesExplorer() {
   const [selectedDurations, setSelectedDurations] = useState<Duration[]>([]);
   const [sort, setSort] = useState<Sort>("popular");
   const [filtersOpen, setFiltersOpen] = useState(false);
-  // Price inputs apply only when "Filtrlash" is pressed, like the mockup.
-  const [appliedPrice, setAppliedPrice] = useState<{
-    min: number | null;
-    max: number | null;
-  }>({ min: null, max: null });
+  const [page, setPage] = useState(1);
+
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
 
   const toggle = <T,>(list: T[], value: T): T[] =>
     list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 
-  const applyFilters = () => {
-    setAppliedPrice({
-      min: minPrice ? Number(minPrice) : null,
-      max: maxPrice ? Number(maxPrice) : null,
+  const fetchCourses = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(LIMIT),
     });
-  };
+    if (query.trim()) params.set("search", query.trim());
+    if (categories.length === 1) params.set("category", categories[0]);
+    if (level !== "Barchasi") params.set("level", level);
+    if (sort === "price-asc") { params.set("sortBy", "price"); params.set("sortOrder", "asc"); }
+    else if (sort === "price-desc") { params.set("sortBy", "price"); params.set("sortOrder", "desc"); }
+    else if (sort === "rating") { params.set("sortBy", "rating"); params.set("sortOrder", "desc"); }
+    else { params.set("sortBy", "popular"); params.set("sortOrder", "desc"); }
+
+    api
+      .get<{ data: { items: Course[]; total: number } }>(`/public/courses?${params}`)
+      .then((res) => {
+        setCourses(res.data.data.items ?? []);
+        setTotal(res.data.data.total ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [query, categories, level, sort, page]);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
+
+  const totalPages = Math.ceil(total / LIMIT);
 
   const resetFilters = () => {
     setQuery("");
@@ -82,42 +99,12 @@ export function CoursesExplorer() {
     setMinPrice("");
     setMaxPrice("");
     setSelectedDurations([]);
-    setAppliedPrice({ min: null, max: null });
+    setPage(1);
   };
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const result = courses.filter((course) => {
-      if (q && !`${course.title} ${course.excerpt}`.toLowerCase().includes(q))
-        return false;
-      if (categories.length > 0 && !categories.includes(course.category))
-        return false;
-      if (level !== "Barchasi" && course.level !== level) return false;
-      if (appliedPrice.min !== null && course.price < appliedPrice.min)
-        return false;
-      if (appliedPrice.max !== null && course.price > appliedPrice.max)
-        return false;
-      if (!matchesDuration(course, selectedDurations)) return false;
-      return true;
-    });
-
-    return result.sort((a, b) => {
-      switch (sort) {
-        case "price-asc":
-          return a.price - b.price;
-        case "price-desc":
-          return b.price - a.price;
-        case "rating":
-          return b.rating - a.rating;
-        default:
-          return b.reviews - a.reviews;
-      }
-    });
-  }, [query, categories, level, appliedPrice, selectedDurations, sort]);
 
   return (
     <div className="grid items-start gap-8 lg:grid-cols-[260px_1fr]">
-      
+
       <div>
         <Button
           variant="outline"
@@ -142,14 +129,12 @@ export function CoursesExplorer() {
                   >
                     <Checkbox
                       checked={categories.includes(cat)}
-                      onCheckedChange={() =>
-                        setCategories((prev) => toggle(prev, cat))
-                      }
+                      onCheckedChange={() => {
+                        setCategories((prev) => toggle(prev, cat));
+                        setPage(1);
+                      }}
                     />
                     <span className="flex-1">{cat}</span>
-                    <span className="text-xs text-muted-foreground">
-                      ({categoryCounts[cat]})
-                    </span>
                   </Label>
                 ))}
               </div>
@@ -169,7 +154,7 @@ export function CoursesExplorer() {
                       type="radio"
                       name="level"
                       checked={level === l}
-                      onChange={() => setLevel(l)}
+                      onChange={() => { setLevel(l); setPage(1); }}
                       className="size-4 accent-primary"
                     />
                     {l}
@@ -226,7 +211,7 @@ export function CoursesExplorer() {
             </div>
 
             <div className="flex gap-2">
-              <Button className="flex-1" onClick={applyFilters}>
+              <Button className="flex-1" onClick={() => { setPage(1); fetchCourses(); }}>
                 Filtrlash
               </Button>
               <Button variant="outline" className="flex-1" onClick={resetFilters}>
@@ -237,13 +222,13 @@ export function CoursesExplorer() {
         </Card>
       </div>
 
-      
+
       <div>
         <div className="relative">
           <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => { setQuery(e.target.value); setPage(1); }}
             placeholder="Kurs nomini yozing..."
             className="pl-9"
             aria-label="Kurs qidirish"
@@ -253,11 +238,11 @@ export function CoursesExplorer() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">
-              {filtered.length} ta
+              {total} ta
             </span>{" "}
             kurs topildi
           </p>
-          <Select value={sort} onValueChange={(v) => setSort(v as Sort)}>
+          <Select value={sort} onValueChange={(v) => { setSort(v as Sort); setPage(1); }}>
             <SelectTrigger className="w-44" aria-label="Saralash">
               <SelectValue />
             </SelectTrigger>
@@ -270,36 +255,65 @@ export function CoursesExplorer() {
           </Select>
         </div>
 
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-xl border overflow-hidden">
+                <Skeleton className="aspect-video w-full" />
+                <div className="p-4 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-8 w-full mt-3" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : courses.length === 0 ? (
           <p className="py-24 text-center text-muted-foreground">
             Hech qanday kurs topilmadi. Filtrlarni o&rsquo;zgartirib
             ko&rsquo;ring.
           </p>
         ) : (
           <div className="mt-6 grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {filtered.map((course) => (
+            {courses.map((course) => (
               <CourseCard key={course.slug} course={course} />
             ))}
           </div>
         )}
 
-        <Pagination className="mt-10">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious href="#" text="" className="pr-1.5!" />
-            </PaginationItem>
-            {[1, 2, 3].map((page) => (
-              <PaginationItem key={page}>
-                <PaginationLink href="#" isActive={page === 1}>
-                  {page}
-                </PaginationLink>
+        {totalPages > 1 && (
+          <Pagination className="mt-10">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  href="#"
+                  text=""
+                  className="pr-1.5!"
+                  onClick={(e) => { e.preventDefault(); if (page > 1) setPage(page - 1); }}
+                />
               </PaginationItem>
-            ))}
-            <PaginationItem>
-              <PaginationNext href="#" text="" className="pl-1.5!" />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => (
+                <PaginationItem key={i + 1}>
+                  <PaginationLink
+                    href="#"
+                    isActive={page === i + 1}
+                    onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              <PaginationItem>
+                <PaginationNext
+                  href="#"
+                  text=""
+                  className="pl-1.5!"
+                  onClick={(e) => { e.preventDefault(); if (page < totalPages) setPage(page + 1); }}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        )}
       </div>
     </div>
   );

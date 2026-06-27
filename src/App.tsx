@@ -26,6 +26,7 @@ import { YangiGuruhPage } from "@/pages/admin/guruh-yangi-page";
 import { JadvalPage } from "@/pages/admin/jadval-page";
 import { DavomatPage } from "@/pages/admin/davomat-page";
 import { OqituvchilarPage as AdminOqituvchilarPage } from "@/pages/admin/oqituvchilar-page";
+import { AdminTolovlarPage } from "@/pages/admin/tolovlar-page";
 import { StudentDashboardPage } from "@/pages/student/dashboard-page";
 import { KatalogPage } from "@/pages/student/katalog-page";
 import { KurslarimPage } from "@/pages/student/kurslarim-page";
@@ -74,6 +75,7 @@ export default function App() {
           <Route path="jadval" element={<JadvalPage />} />
           <Route path="davomat" element={<DavomatPage />} />
           <Route path="oqituvchilar" element={<AdminOqituvchilarPage />} />
+          <Route path="tolovlar" element={<AdminTolovlarPage />} />
         </Route>
       </Route>
 

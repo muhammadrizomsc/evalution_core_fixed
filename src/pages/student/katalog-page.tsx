@@ -1,45 +1,83 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Search, Star, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { courses, getTeacher, formatPrice, categoryColors } from "@/lib/data";
+import { Skeleton } from "@/components/ui/skeleton";
+import { formatPrice, categoryColors } from "@/lib/data";
+import { api } from "@/lib/api";
+
+interface ApiCourse {
+  id: string;
+  slug: string;
+  title: string;
+  category: string;
+  rating?: number;
+  reviews?: number;
+  totalLessons?: number;
+  price: number;
+  oldPrice?: number;
+  image?: string;
+  popular?: boolean;
+  level?: string;
+  instructor?: {
+    firstName: string;
+    lastName: string;
+  };
+}
 
 const PER_PAGE = 8;
-const categories = ["Barchasi", ...Object.keys(categoryColors)];
+const categories = ["Barchasi", "Frontend", "Backend", "Dizayn", "Mobil", "Data Science", "Marketing", "DevOps"];
 const levels = ["barchasi", "Boshlovchi", "O'rtacha", "Mutaxassis"];
-const sortOptions = ["mashhur", "arzon", "qimmat", "yangi"];
+const sortOptions = [
+  { value: "popular", label: "Eng mashhur" },
+  { value: "price-asc", label: "Arzon" },
+  { value: "price-desc", label: "Qimmat" },
+  { value: "rating", label: "Reyting" },
+];
 
 export function KatalogPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selectedCategory, setSelectedCategory] = useState("Barchasi");
   const [selectedLevel, setSelectedLevel] = useState("barchasi");
-  const [sortBy, setSortBy] = useState("mashhur");
+  const [sortBy, setSortBy] = useState("popular");
 
-  const filtered = useMemo(() => {
-    let result = [...courses];
-    if (selectedCategory !== "Barchasi") {
-      result = result.filter((c) => c.category === selectedCategory);
-    }
-    if (selectedLevel !== "barchasi") {
-      result = result.filter((c) => c.level === selectedLevel);
-    }
-    if (search.trim()) {
-      const q = search.toLowerCase();
-      result = result.filter((c) => c.title.toLowerCase().includes(q));
-    }
-    if (sortBy === "arzon") result.sort((a, b) => a.price - b.price);
-    else if (sortBy === "qimmat") result.sort((a, b) => b.price - a.price);
-    else if (sortBy === "yangi") result.sort((a, b) => b.reviews - a.reviews);
-    else result.sort((a, b) => (b.popular ? 1 : 0) - (a.popular ? 1 : 0) || b.rating - a.rating);
-    return result;
-  }, [search, selectedCategory, selectedLevel, sortBy]);
+  const [courses, setCourses] = useState<ApiCourse[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
 
-  const totalPages = Math.ceil(filtered.length / PER_PAGE);
-  const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
+  const fetchCourses = useCallback(() => {
+    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(PER_PAGE),
+    });
+    if (search.trim()) params.set("search", search.trim());
+    if (selectedCategory !== "Barchasi") params.set("category", selectedCategory);
+    if (selectedLevel !== "barchasi") params.set("level", selectedLevel);
+    if (sortBy === "price-asc") { params.set("sortBy", "price"); params.set("sortOrder", "asc"); }
+    else if (sortBy === "price-desc") { params.set("sortBy", "price"); params.set("sortOrder", "desc"); }
+    else if (sortBy === "rating") { params.set("sortBy", "rating"); params.set("sortOrder", "desc"); }
+    else { params.set("featured", "true"); }
+
+    api
+      .get<{ data: { items: ApiCourse[]; total: number } }>(`/public/courses?${params}`)
+      .then((res) => {
+        setCourses(res.data.data.items ?? []);
+        setTotal(res.data.data.total ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [page, search, selectedCategory, selectedLevel, sortBy]);
+
+  useEffect(() => {
+    fetchCourses();
+  }, [fetchCourses]);
+
+  const totalPages = Math.ceil(total / PER_PAGE);
 
   return (
     <div className="space-y-6">
@@ -86,44 +124,66 @@ export function KatalogPage() {
               onChange={(e) => { setSortBy(e.target.value); setPage(1); }}
             >
               {sortOptions.map((s) => (
-                <option key={s} value={s}>Saralash: {s}</option>
+                <option key={s.value} value={s.value}>Saralash: {s.label}</option>
               ))}
             </select>
           </div>
         </CardContent>
       </Card>
 
-      {paginated.length === 0 ? (
+      {loading ? (
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: PER_PAGE }).map((_, i) => (
+            <div key={i} className="rounded-xl border overflow-hidden">
+              <Skeleton className="aspect-video w-full" />
+              <div className="p-4 space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
+                <Skeleton className="h-8 w-full mt-3" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : courses.length === 0 ? (
         <div className="py-16 text-center">
           <p className="text-lg font-medium text-slate-500">Natija topilmadi</p>
           <p className="mt-1 text-sm text-slate-400">Boshqa kalit so'z yoki kategoriya sinab ko'ring.</p>
         </div>
       ) : (
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {paginated.map((course) => {
-            const teacher = getTeacher(course.teacherId);
+          {courses.map((course) => {
+            const category = course.category as keyof typeof categoryColors;
+            const instructorName = course.instructor
+              ? `${course.instructor.firstName} ${course.instructor.lastName}`
+              : "";
             return (
-              <Card key={course.slug} className="group overflow-hidden rounded-xl border-slate-200 shadow-xs transition-shadow hover:shadow-md">
+              <Card key={course.slug ?? course.id} className="group overflow-hidden rounded-xl border-slate-200 shadow-xs transition-shadow hover:shadow-md">
                 <div className="relative aspect-video overflow-hidden">
                   <img
-                    src={course.image}
+                    src={course.image ?? "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80"}
                     alt={course.title}
                     className="size-full object-cover transition-transform group-hover:scale-105"
                   />
-                  <Badge className={`absolute top-3 left-3 shadow-none ${categoryColors[course.category]}`}>
-                    {course.category}
-                  </Badge>
+                  {categoryColors[category] && (
+                    <Badge className={`absolute top-3 left-3 shadow-none ${categoryColors[category]}`}>
+                      {course.category}
+                    </Badge>
+                  )}
                 </div>
                 <CardContent className="p-4">
                   <h3 className="font-semibold text-slate-900">{course.title}</h3>
                   <p className="mt-1 text-xs text-slate-500">
-                    {teacher.name} · {course.totalLessons} dars
+                    {instructorName}{instructorName && course.totalLessons ? " · " : ""}{course.totalLessons ? `${course.totalLessons} dars` : ""}
                   </p>
-                  <div className="mt-2 flex items-center gap-1.5 text-sm">
-                    <Star className="size-3.5 fill-amber-400 text-amber-400" />
-                    <span className="font-medium">{course.rating}</span>
-                    <span className="text-slate-400">({course.reviews})</span>
-                  </div>
+                  {course.rating !== undefined && (
+                    <div className="mt-2 flex items-center gap-1.5 text-sm">
+                      <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                      <span className="font-medium">{course.rating}</span>
+                      {course.reviews !== undefined && (
+                        <span className="text-slate-400">({course.reviews})</span>
+                      )}
+                    </div>
+                  )}
                   <div className="mt-3">
                     <span className="text-lg font-bold text-slate-900">{formatPrice(course.price)}</span>
                     {course.oldPrice && (
@@ -134,10 +194,10 @@ export function KatalogPage() {
                   </div>
                   <div className="mt-3 flex gap-2">
                     <Button variant="outline" size="sm" className="flex-1" asChild>
-                      <Link to={`/student/katalog/${course.slug}`}>Batafsil</Link>
+                      <Link to={`/student/katalog/${course.slug ?? course.id}`}>Batafsil</Link>
                     </Button>
                     <Button size="sm" className="flex-1" asChild>
-                      <Link to={`/student/katalog/${course.slug}/tolov`}>Sotib olish</Link>
+                      <Link to={`/student/katalog/${course.slug ?? course.id}/tolov`}>Sotib olish</Link>
                     </Button>
                   </div>
                 </CardContent>
@@ -149,7 +209,7 @@ export function KatalogPage() {
 
       <div className="flex items-center justify-between">
         <p className="text-sm text-blue-600">
-          Ko'rsatilmoqda {(page - 1) * PER_PAGE + 1}-{Math.min(page * PER_PAGE, filtered.length)} / <span className="font-semibold">{filtered.length}</span> kurs
+          Ko'rsatilmoqda {total === 0 ? 0 : (page - 1) * PER_PAGE + 1}–{Math.min(page * PER_PAGE, total)} / <span className="font-semibold">{total}</span> kurs
         </p>
         {totalPages > 1 && (
           <div className="flex items-center gap-1.5">
@@ -162,7 +222,7 @@ export function KatalogPage() {
             >
               <ChevronLeft className="size-4" />
             </Button>
-            {Array.from({ length: totalPages }, (_, i) => (
+            {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => (
               <Button
                 key={i + 1}
                 variant={page === i + 1 ? "default" : "outline"}

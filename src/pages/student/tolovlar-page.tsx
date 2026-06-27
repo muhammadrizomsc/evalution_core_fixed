@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   DollarSign,
@@ -9,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -17,38 +19,73 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { api } from "@/lib/api";
 
 interface Payment {
   id: string;
-  date: string;
-  course: string;
   amount: number;
-  method: string;
-  status: string;
+  method?: string;
+  status?: string;
+  paidAt?: string;
+  createdAt?: string;
+  course?: { title: string; slug?: string };
+  courseName?: string;
 }
-
-const payments: Payment[] = [
-  { id: "1", date: "14-noyabr, 2025", course: "React.js — zamonaviy frontend", amount: 790_000, method: "Payme", status: "To'langan" },
-  { id: "2", date: "02-oktabr, 2025", course: "Python asoslari", amount: 590_000, method: "Uzcard", status: "To'langan" },
-  { id: "3", date: "18-avgust, 2025", course: "UX/UI dizayn asoslari", amount: 490_000, method: "Click", status: "To'langan" },
-];
 
 function fmt(v: number) {
   return new Intl.NumberFormat("uz-UZ").format(v).replace(/,/g, " ");
 }
 
-const totalSpent = payments.reduce((s, p) => s + p.amount, 0);
-const thisYear = payments.filter((p) => p.date.includes("2025")).reduce((s, p) => s + p.amount, 0);
-
-const stats = [
-  { label: "Jami sarflangan (so'm)", value: fmt(totalSpent), icon: DollarSign, color: "bg-emerald-50 text-emerald-600", border: "border-emerald-200" },
-  { label: "Sotib olingan kurslar", value: String(payments.length), icon: BookOpen, color: "bg-blue-50 text-blue-600", border: "border-blue-200" },
-  { label: "Bu yil sarflangan (so'm)", value: fmt(thisYear), icon: Calendar, color: "bg-orange-50 text-orange-600", border: "border-orange-200" },
-];
-
 const paymentMethods = ["Payme", "Click", "Uzcard", "Visa / Mastercard"];
 
+const paymentBadge: Record<string, string> = {
+  paid: "text-emerald-600 font-medium",
+  "To'langan": "text-emerald-600 font-medium",
+  pending: "text-orange-500 font-medium",
+  Kutilmoqda: "text-orange-500 font-medium",
+  debt: "text-red-600 font-medium",
+  Qarzdor: "text-red-600 font-medium",
+};
+
 export function TolovlarPage() {
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Student payments come from enrollments with payment info
+    // Fallback: try to get from enrollments
+    api
+      .get<{ data: Payment[] | { items: Payment[] } }>("/student/enrollments")
+      .then((res) => {
+        // If the endpoint returns enrollments, extract payment info
+        // The actual endpoint for student payments varies — try a direct payments endpoint first
+      })
+      .catch(() => {});
+
+    // Try a student-specific payments summary
+    api
+      .get<{ data: Payment[] }>("/student/payments")
+      .then((res) => {
+        setPayments(Array.isArray(res.data.data) ? res.data.data : []);
+      })
+      .catch(() => {
+        setPayments([]);
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalSpent = payments.reduce((s, p) => s + p.amount, 0);
+  const thisYear = payments.filter((p) => {
+    const date = p.paidAt ?? p.createdAt ?? "";
+    return date.includes(String(new Date().getFullYear()));
+  }).reduce((s, p) => s + p.amount, 0);
+
+  const stats = [
+    { label: "Jami sarflangan (so'm)", value: loading ? "—" : fmt(totalSpent), icon: DollarSign, color: "bg-emerald-50 text-emerald-600", border: "border-emerald-200" },
+    { label: "Sotib olingan kurslar", value: loading ? "—" : String(payments.length), icon: BookOpen, color: "bg-blue-50 text-blue-600", border: "border-blue-200" },
+    { label: "Bu yil sarflangan (so'm)", value: loading ? "—" : fmt(thisYear), icon: Calendar, color: "bg-orange-50 text-orange-600", border: "border-orange-200" },
+  ];
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -74,7 +111,11 @@ export function TolovlarPage() {
             <div className={`flex size-10 items-center justify-center rounded-lg ${s.color}`}>
               <s.icon className="size-5" />
             </div>
-            <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{s.value}</p>
+            {loading ? (
+              <Skeleton className="mt-3 h-8 w-24" />
+            ) : (
+              <p className="mt-3 text-3xl font-bold tracking-tight text-slate-900">{s.value}</p>
+            )}
             <p className="mt-0.5 text-sm text-slate-500">{s.label}</p>
           </div>
         ))}
@@ -100,23 +141,48 @@ export function TolovlarPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments.map((p) => (
-                      <TableRow key={p.id}>
-                        <TableCell className="pl-6 text-slate-500">{p.date}</TableCell>
-                        <TableCell className="font-medium text-slate-900">{p.course}</TableCell>
-                        <TableCell className="text-slate-700">{fmt(p.amount)}</TableCell>
-                        <TableCell className="text-slate-500">{p.method}</TableCell>
-                        <TableCell>
-                          <span className="font-medium text-emerald-600">{p.status}</span>
-                        </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm" className="text-slate-500">
-                            <Download className="mr-1 size-3.5" />
-                            PDF
-                          </Button>
+                    {loading ? (
+                      Array.from({ length: 3 }).map((_, i) => (
+                        <TableRow key={i}>
+                          <TableCell className="pl-6"><Skeleton className="h-4 w-24" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                          <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                          <TableCell></TableCell>
+                        </TableRow>
+                      ))
+                    ) : payments.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-12 text-center text-sm text-slate-500">
+                          Hali hech qanday to'lov amalga oshirilmagan
                         </TableCell>
                       </TableRow>
-                    ))}
+                    ) : (
+                      payments.map((p) => {
+                        const courseName = p.course?.title ?? p.courseName ?? "—";
+                        const date = p.paidAt ?? p.createdAt;
+                        const dateStr = date ? new Date(date).toLocaleDateString("uz-UZ") : "—";
+                        const statusClass = paymentBadge[p.status ?? ""] ?? "text-slate-600 font-medium";
+                        return (
+                          <TableRow key={p.id}>
+                            <TableCell className="pl-6 text-slate-500">{dateStr}</TableCell>
+                            <TableCell className="font-medium text-slate-900 max-w-[180px] truncate">{courseName}</TableCell>
+                            <TableCell className="text-slate-700">{fmt(p.amount)}</TableCell>
+                            <TableCell className="text-slate-500">{p.method ?? "—"}</TableCell>
+                            <TableCell>
+                              <span className={statusClass}>{p.status ?? "—"}</span>
+                            </TableCell>
+                            <TableCell>
+                              <Button variant="ghost" size="sm" className="text-slate-500">
+                                <Download className="mr-1 size-3.5" />
+                                PDF
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
                   </TableBody>
                 </Table>
               </div>

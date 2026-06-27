@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   BookOpen,
@@ -8,72 +9,34 @@ import {
   Download,
   Plus,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { categoryColors } from "@/lib/data";
+import { api } from "@/lib/api";
 
-interface MyCourse {
+interface Enrollment {
   id: string;
-  name: string;
-  teacher: string;
-  teacherAvatar: string;
-  category: keyof typeof categoryColors;
-  categoryLabel: string;
-  progress: number;
-  totalLessons: number;
-  completedLessons: number;
-  image: string;
-  status: "active" | "completed";
-  grade?: number;
-  gradeLabel?: string;
+  courseId: string;
+  status?: string;
+  progress?: number;
+  completedLessons?: number;
+  totalLessons?: number;
+  course?: {
+    id: string;
+    title: string;
+    slug: string;
+    image?: string;
+    category?: string;
+  };
+  instructor?: {
+    firstName: string;
+    lastName: string;
+    avatar?: string;
+  };
 }
-
-const myCourses: MyCourse[] = [
-  {
-    id: "1", name: "React.js — zamonaviy frontend", teacher: "Akmal Karimov",
-    teacherAvatar: "https://i.pravatar.cc/150?img=12", category: "Frontend", categoryLabel: "Frontend",
-    progress: 62, totalLessons: 32, completedLessons: 14,
-    image: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80", status: "active",
-  },
-  {
-    id: "2", name: "Python asoslari", teacher: "Dilnoza Yusupova",
-    teacherAvatar: "https://i.pravatar.cc/150?img=45", category: "Backend", categoryLabel: "Dasturlash",
-    progress: 33, totalLessons: 24, completedLessons: 8,
-    image: "https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=600&q=80", status: "active",
-  },
-  {
-    id: "3", name: "UX/UI dizayn asoslari", teacher: "Sardor Aliyev",
-    teacherAvatar: "https://i.pravatar.cc/150?img=56", category: "Dizayn", categoryLabel: "Dizayn",
-    progress: 95, totalLessons: 20, completedLessons: 19,
-    image: "https://images.unsplash.com/photo-1561070791-2526d30994b5?w=600&q=80", status: "active",
-  },
-  {
-    id: "4", name: "JavaScript asoslari", teacher: "Akmal Karimov",
-    teacherAvatar: "https://i.pravatar.cc/150?img=12", category: "Frontend", categoryLabel: "Frontend",
-    progress: 100, totalLessons: 60, completedLessons: 60,
-    image: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600&q=80", status: "completed",
-    grade: 94, gradeLabel: "A'lo",
-  },
-  {
-    id: "5", name: "Git va GitHub", teacher: "Jasur Rahimov",
-    teacherAvatar: "https://i.pravatar.cc/150?img=60", category: "DevOps", categoryLabel: "DevOps",
-    progress: 100, totalLessons: 16, completedLessons: 16,
-    image: "https://images.unsplash.com/photo-1587620962725-abab7fe55159?w=600&q=80", status: "completed",
-    grade: 88, gradeLabel: "Yaxshi",
-  },
-];
-
-const activeCourses = myCourses.filter((c) => c.status === "active");
-const completedCourses = myCourses.filter((c) => c.status === "completed");
-
-const stats = [
-  { label: "Davom etayotgan", value: activeCourses.length, icon: BookOpen, color: "bg-blue-50 text-blue-600", border: "border-blue-200" },
-  { label: "Tugallangan", value: completedCourses.length, icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600", border: "border-emerald-200" },
-  { label: "Sertifikatlar", value: completedCourses.length, icon: Award, color: "bg-violet-50 text-violet-600", border: "border-violet-200" },
-  { label: "O'rganilgan soat", value: "47", icon: Clock, color: "bg-orange-50 text-orange-600", border: "border-orange-200" },
-];
 
 function ProgressBar({ value }: { value: number }) {
   const color = value >= 80 ? "bg-emerald-500" : value >= 40 ? "bg-blue-500" : "bg-orange-500";
@@ -85,6 +48,33 @@ function ProgressBar({ value }: { value: number }) {
 }
 
 export function KurslarimPage() {
+  const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get<{ data: { items: Enrollment[] } }>("/student/enrollments")
+      .then((res) => {
+        setEnrollments(res.data.data.items ?? []);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const activeCourses = enrollments.filter(
+    (e) => e.status !== "completed" && (e.progress ?? 0) < 100
+  );
+  const completedCourses = enrollments.filter(
+    (e) => e.status === "completed" || (e.progress ?? 0) === 100
+  );
+
+  const stats = [
+    { label: "Davom etayotgan", value: loading ? "—" : activeCourses.length, icon: BookOpen, color: "bg-blue-50 text-blue-600", border: "border-blue-200" },
+    { label: "Tugallangan", value: loading ? "—" : completedCourses.length, icon: CheckCircle2, color: "bg-emerald-50 text-emerald-600", border: "border-emerald-200" },
+    { label: "Sertifikatlar", value: loading ? "—" : completedCourses.length, icon: Award, color: "bg-violet-50 text-violet-600", border: "border-violet-200" },
+    { label: "O'rganilgan soat", value: "—", icon: Clock, color: "bg-orange-50 text-orange-600", border: "border-orange-200" },
+  ];
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col gap-4 rounded-2xl bg-slate-900 p-6 text-white sm:flex-row sm:items-center sm:justify-between sm:p-8">
@@ -118,86 +108,121 @@ export function KurslarimPage() {
 
       <div>
         <h2 className="mb-4 text-lg font-semibold text-blue-600">
-          Davom etayotgan kurslar ({activeCourses.length})
+          Davom etayotgan kurslar ({loading ? "..." : activeCourses.length})
         </h2>
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {activeCourses.map((course) => (
-            <Card key={course.id} className="group overflow-hidden rounded-xl border-slate-200 shadow-xs">
-              <div className="relative aspect-video overflow-hidden">
-                <img
-                  src={course.image}
-                  alt={course.name}
-                  className="size-full object-cover transition-transform group-hover:scale-105"
-                />
-                <Badge className={`absolute top-3 left-3 shadow-none ${categoryColors[course.category]}`}>
-                  {course.categoryLabel}
-                </Badge>
+        {loading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="rounded-xl border overflow-hidden">
+                <Skeleton className="aspect-video w-full" />
+                <div className="p-4 space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-2 w-full mt-3" />
+                  <Skeleton className="h-8 w-full mt-2" />
+                </div>
               </div>
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-slate-900">{course.name}</h3>
-                <div className="mt-2 flex items-center gap-2">
-                  <Avatar className="size-5">
-                    <AvatarImage src={course.teacherAvatar} />
-                    <AvatarFallback className="text-[10px]">{course.teacher[0]}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-xs text-slate-500">{course.teacher}</span>
-                </div>
-                <div className="mt-3">
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="text-slate-500">{course.completedLessons} / {course.totalLessons} dars</span>
-                    <span className="font-semibold text-slate-900">{course.progress}%</span>
+            ))}
+          </div>
+        ) : activeCourses.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-slate-200 py-12 text-center text-sm text-slate-500">
+            Faol kurslar yo'q.{" "}
+            <Link to="/student/katalog" className="text-blue-600 hover:underline">
+              Katalogdan kurs tanlang
+            </Link>
+          </div>
+        ) : (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {activeCourses.map((enrollment) => {
+              const course = enrollment.course;
+              const instructorName = enrollment.instructor
+                ? `${enrollment.instructor.firstName} ${enrollment.instructor.lastName}`
+                : "O'qituvchi";
+              const category = (course?.category ?? "Frontend") as keyof typeof categoryColors;
+              const progress = enrollment.progress ?? 0;
+              return (
+                <Card key={enrollment.id} className="group overflow-hidden rounded-xl border-slate-200 shadow-xs">
+                  <div className="relative aspect-video overflow-hidden">
+                    <img
+                      src={course?.image ?? "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80"}
+                      alt={course?.title}
+                      className="size-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    {categoryColors[category] && (
+                      <Badge className={`absolute top-3 left-3 shadow-none ${categoryColors[category]}`}>
+                        {category}
+                      </Badge>
+                    )}
                   </div>
-                  <ProgressBar value={course.progress} />
-                </div>
-                <Button size="sm" className="mt-3 w-full">
-                  <Play className="mr-1.5 size-3.5" />
-                  Davom ettirish
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-slate-900">{course?.title ?? "Kurs"}</h3>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Avatar className="size-5">
+                        <AvatarFallback className="text-[10px]">{instructorName[0]}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs text-slate-500">{instructorName}</span>
+                    </div>
+                    <div className="mt-3">
+                      <div className="mb-1 flex items-center justify-between text-xs">
+                        <span className="text-slate-500">
+                          {enrollment.completedLessons ?? 0} / {enrollment.totalLessons ?? 0} dars
+                        </span>
+                        <span className="font-semibold text-slate-900">{progress}%</span>
+                      </div>
+                      <ProgressBar value={progress} />
+                    </div>
+                    <Button size="sm" className="mt-3 w-full">
+                      <Play className="mr-1.5 size-3.5" />
+                      Davom ettirish
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div>
         <h2 className="mb-4 text-lg font-semibold text-blue-600">
-          Tugallangan kurslar ({completedCourses.length})
+          Tugallangan kurslar ({loading ? "..." : completedCourses.length})
         </h2>
         <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {completedCourses.map((course) => (
-            <Card key={course.id} className="group overflow-hidden rounded-xl border-slate-200 shadow-xs">
-              <div className="relative aspect-video overflow-hidden">
-                <img
-                  src={course.image}
-                  alt={course.name}
-                  className="size-full object-cover transition-transform group-hover:scale-105"
-                />
-                <Badge className="absolute top-3 left-3 bg-slate-800/80 text-white shadow-none">
-                  Tugallangan
-                </Badge>
-              </div>
-              <CardContent className="p-4">
-                <h3 className="font-semibold text-slate-900">{course.name}</h3>
-                <div className="mt-2 flex items-center gap-2">
-                  <Avatar className="size-5">
-                    <AvatarImage src={course.teacherAvatar} />
-                    <AvatarFallback className="text-[10px]">{course.teacher[0]}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-xs text-slate-500">{course.teacher}</span>
-                </div>
-                <p className="mt-3 text-sm text-slate-500">
-                  Yakuniy natija:{" "}
-                  <span className={`font-bold ${course.grade! >= 90 ? "text-emerald-600" : "text-blue-600"}`}>
-                    {course.grade}% ({course.gradeLabel})
-                  </span>
-                </p>
-                <Button size="sm" className="mt-3 w-full">
-                  <Download className="mr-1.5 size-3.5" />
-                  Sertifikatni yuklash
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+          {!loading &&
+            completedCourses.map((enrollment) => {
+              const course = enrollment.course;
+              const instructorName = enrollment.instructor
+                ? `${enrollment.instructor.firstName} ${enrollment.instructor.lastName}`
+                : "O'qituvchi";
+              return (
+                <Card key={enrollment.id} className="group overflow-hidden rounded-xl border-slate-200 shadow-xs">
+                  <div className="relative aspect-video overflow-hidden">
+                    <img
+                      src={course?.image ?? "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=600&q=80"}
+                      alt={course?.title}
+                      className="size-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    <Badge className="absolute top-3 left-3 bg-slate-800/80 text-white shadow-none">
+                      Tugallangan
+                    </Badge>
+                  </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-slate-900">{course?.title ?? "Kurs"}</h3>
+                    <div className="mt-2 flex items-center gap-2">
+                      <Avatar className="size-5">
+                        <AvatarFallback className="text-[10px]">{instructorName[0]}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs text-slate-500">{instructorName}</span>
+                    </div>
+                    <p className="mt-3 text-sm text-emerald-600 font-medium">100% tugallandi</p>
+                    <Button size="sm" className="mt-3 w-full">
+                      <Download className="mr-1.5 size-3.5" />
+                      Sertifikatni yuklash
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })}
 
           <Card className="flex items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/50 shadow-xs">
             <CardContent className="py-12 text-center">

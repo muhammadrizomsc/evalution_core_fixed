@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   Pagination,
   PaginationContent,
@@ -10,8 +11,9 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination";
 import { TeacherCard } from "@/components/site/teacher-card";
-import { teachers } from "@/lib/data";
+import { type Teacher } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
 
 const filters = [
   "Barchasi",
@@ -22,9 +24,31 @@ const filters = [
   "Marketing",
 ] as const;
 
+const LIMIT = 12;
+
 export function TeachersExplorer() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<(typeof filters)[number]>("Barchasi");
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(LIMIT),
+    });
+    api
+      .get<{ data: { items: Teacher[]; total: number } }>(`/public/instructors?${params}`)
+      .then((res) => {
+        setTeachers(res.data.data.items ?? []);
+        setTotal(res.data.data.total ?? 0);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [page]);
 
   const filtered = teachers.filter((t) => {
     const matchesCategory = category === "Barchasi" || t.category === category;
@@ -35,6 +59,8 @@ export function TeachersExplorer() {
       t.role.toLowerCase().includes(q);
     return matchesCategory && matchesQuery;
   });
+
+  const totalPages = Math.ceil(total / LIMIT);
 
   return (
     <div>
@@ -69,7 +95,18 @@ export function TeachersExplorer() {
         </div>
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-xl border p-6 flex flex-col items-center gap-3">
+              <Skeleton className="size-24 rounded-full" />
+              <Skeleton className="h-5 w-32" />
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+          ))}
+        </div>
+      ) : filtered.length === 0 ? (
         <p className="py-20 text-center text-muted-foreground">
           {"Hech qanday o'qituvchi topilmadi. Qidiruvni o'zgartirib ko'ring."}
         </p>
@@ -81,23 +118,39 @@ export function TeachersExplorer() {
         </div>
       )}
 
-      <Pagination className="mt-10">
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious href="#" text="" className="pr-1.5!" />
-          </PaginationItem>
-          {[1, 2, 3].map((page) => (
-            <PaginationItem key={page}>
-              <PaginationLink href="#" isActive={page === 1}>
-                {page}
-              </PaginationLink>
+      {totalPages > 1 && (
+        <Pagination className="mt-10">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                text=""
+                className="pr-1.5!"
+                onClick={(e) => { e.preventDefault(); if (page > 1) setPage(page - 1); }}
+              />
             </PaginationItem>
-          ))}
-          <PaginationItem>
-            <PaginationNext href="#" text="" className="pl-1.5!" />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <PaginationItem key={i + 1}>
+                <PaginationLink
+                  href="#"
+                  isActive={page === i + 1}
+                  onClick={(e) => { e.preventDefault(); setPage(i + 1); }}
+                >
+                  {i + 1}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                text=""
+                className="pl-1.5!"
+                onClick={(e) => { e.preventDefault(); if (page < totalPages) setPage(page + 1); }}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      )}
     </div>
   );
 }

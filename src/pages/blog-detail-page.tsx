@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Navigate, useParams } from "react-router-dom";
 import {
@@ -24,10 +25,35 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import { blogPosts, categoryColors, getInitials, type Category } from "@/lib/data";
+import { categoryColors, getInitials, type Category } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+
+interface ContentBlock {
+  heading?: string;
+  paragraphs: string[];
+  list?: string[];
+}
+
+interface Post {
+  id: string;
+  slug: string;
+  title: string;
+  excerpt: string;
+  category: string;
+  author: string;
+  authorAvatar?: string;
+  date: string;
+  readMinutes: number;
+  views: number;
+  image: string;
+  featured?: boolean;
+  tags?: string[];
+  content?: ContentBlock[];
+}
 
 function badgeColor(category: string): string {
   return categoryColors[category as Category] ?? "bg-sky-100 text-sky-700";
@@ -36,7 +62,7 @@ function badgeColor(category: string): string {
 function headingId(heading: string): string {
   return heading
     .toLowerCase()
-    .replace(/['’]/g, "")
+    .replace(/['']/g, "")
     .replace(/[^a-z0-9а-яё]+/gi, "-")
     .replace(/^-+|-+$/g, "");
 }
@@ -68,19 +94,60 @@ const sampleComments = [
 
 export function BlogPostPage() {
   const { slug } = useParams();
-  const post = blogPosts.find((p) => p.slug === slug);
-  if (!post) return <Navigate to="/404" replace />;
+  const [post, setPost] = useState<Post | null>(null);
+  const [related, setRelated] = useState<Post[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  const headings = post.content
+  useEffect(() => {
+    if (!slug) return;
+    setLoading(true);
+    setNotFound(false);
+
+    api
+      .get<{ data: Post }>(`/public/blog/${slug}`)
+      .then((res) => {
+        setPost(res.data.data);
+        // Fetch related posts
+        return api.get<{ data: { items: Post[] } }>("/public/blog?limit=4");
+      })
+      .then((res) => {
+        setRelated((res.data.data.items ?? []).filter((p) => p.slug !== slug).slice(0, 3));
+      })
+      .catch((err) => {
+        if (err?.response?.status === 404) setNotFound(true);
+      })
+      .finally(() => setLoading(false));
+  }, [slug]);
+
+  if (!slug) return <Navigate to="/404" replace />;
+  if (notFound) return <Navigate to="/404" replace />;
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+        <div className="space-y-4">
+          <Skeleton className="h-6 w-64" />
+          <Skeleton className="h-10 w-3/4" />
+          <Skeleton className="aspect-video w-full rounded-xl" />
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-5/6" />
+          <Skeleton className="h-4 w-4/6" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!post) return null;
+
+  const headings = (post.content ?? [])
     .filter((block) => block.heading)
     .map((block) => block.heading as string);
-
-  const related = blogPosts.filter((p) => p.slug !== post.slug).slice(0, 3);
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="grid gap-10 lg:grid-cols-[1fr_260px]">
-        
+
         <article className="min-w-0">
           <Breadcrumb className="mb-6">
             <BreadcrumbList>
@@ -141,55 +208,62 @@ export function BlogPostPage() {
             <img src={post.image} alt={post.title} className="absolute inset-0 h-full w-full object-cover" />
           </div>
 
-          
-          <div className="mt-8 space-y-6 leading-relaxed text-foreground/90">
-            {post.content.map((block, index) => (
-              <section key={index} className="space-y-4">
-                {block.heading && (
-                  <h2
-                    id={headingId(block.heading)}
-                    className="scroll-mt-24 text-xl font-bold tracking-tight text-foreground sm:text-2xl"
-                  >
-                    {block.heading}
-                  </h2>
-                )}
-                {block.paragraphs.map((paragraph, pIndex) => (
-                  <p key={pIndex}>{paragraph}</p>
-                ))}
-                {block.list && (
-                  <ul className="space-y-2 pl-1">
-                    {block.list.map((item, lIndex) => (
-                      <li key={lIndex} className="flex items-start gap-2.5">
-                        <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                {post.featured && index === 1 && (
-                  <blockquote className="rounded-r-xl border-l-4 border-primary bg-blue-50/70 p-5">
-                    <Quote className="mb-2 size-5 text-primary" />
-                    <p className="font-medium text-foreground">
-                      &ldquo;Eng yaxshi vaqt — kecha edi. Ikkinchi eng yaxshi vaqt —
-                      bugun. Dasturlashni o&rsquo;rganishni bugun boshlang.&rdquo;
-                    </p>
-                  </blockquote>
-                )}
-              </section>
-            ))}
-          </div>
+          {post.content && post.content.length > 0 && (
+            <div className="mt-8 space-y-6 leading-relaxed text-foreground/90">
+              {post.content.map((block, index) => (
+                <section key={index} className="space-y-4">
+                  {block.heading && (
+                    <h2
+                      id={headingId(block.heading)}
+                      className="scroll-mt-24 text-xl font-bold tracking-tight text-foreground sm:text-2xl"
+                    >
+                      {block.heading}
+                    </h2>
+                  )}
+                  {block.paragraphs.map((paragraph, pIndex) => (
+                    <p key={pIndex}>{paragraph}</p>
+                  ))}
+                  {block.list && (
+                    <ul className="space-y-2 pl-1">
+                      {block.list.map((item, lIndex) => (
+                        <li key={lIndex} className="flex items-start gap-2.5">
+                          <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {post.featured && index === 1 && (
+                    <blockquote className="rounded-r-xl border-l-4 border-primary bg-blue-50/70 p-5">
+                      <Quote className="mb-2 size-5 text-primary" />
+                      <p className="font-medium text-foreground">
+                        &ldquo;Eng yaxshi vaqt — kecha edi. Ikkinchi eng yaxshi vaqt —
+                        bugun. Dasturlashni o&rsquo;rganishni bugun boshlang.&rdquo;
+                      </p>
+                    </blockquote>
+                  )}
+                </section>
+              ))}
+            </div>
+          )}
 
-          
-          <div className="mt-8 flex flex-wrap items-center gap-2 border-t pt-6">
-            <span className="text-sm font-medium text-muted-foreground">Teglar:</span>
-            {post.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+          {post.excerpt && (!post.content || post.content.length === 0) && (
+            <div className="mt-8 leading-relaxed text-foreground/90">
+              <p>{post.excerpt}</p>
+            </div>
+          )}
 
-          
+          {post.tags && post.tags.length > 0 && (
+            <div className="mt-8 flex flex-wrap items-center gap-2 border-t pt-6">
+              <span className="text-sm font-medium text-muted-foreground">Teglar:</span>
+              {post.tags.map((tag) => (
+                <Badge key={tag} variant="secondary">
+                  {tag}
+                </Badge>
+              ))}
+            </div>
+          )}
+
           <Card className="mt-6 py-3">
             <CardContent className="flex items-center justify-between px-4">
               <span className="text-sm text-muted-foreground">
@@ -210,7 +284,6 @@ export function BlogPostPage() {
             </CardContent>
           </Card>
 
-          
           <Card className="mt-10">
             <CardHeader>
               <CardTitle className="text-lg font-semibold">
@@ -278,7 +351,6 @@ export function BlogPostPage() {
           </Card>
         </article>
 
-        
         <aside className="hidden lg:block">
           <div className="sticky top-24">
             <Card size="sm">
@@ -312,45 +384,46 @@ export function BlogPostPage() {
         </aside>
       </div>
 
-      
-      <section className="mt-16">
-        <h2 className="text-2xl font-bold tracking-tight">O&rsquo;xshash maqolalar</h2>
-        <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {related.map((relatedPost) => (
-            <Card
-              key={relatedPost.slug}
-              className="group overflow-hidden p-0 transition-shadow hover:shadow-lg"
-            >
-              <Link to={`/blog/${relatedPost.slug}`} className="relative block aspect-video">
-                <img src={relatedPost.image} alt={relatedPost.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-              </Link>
-              <div className="flex flex-1 flex-col gap-3 p-5">
-                <div className="flex items-center justify-between gap-2">
-                  <Badge className={cn("border-0", badgeColor(relatedPost.category))}>
-                    {relatedPost.category}
-                  </Badge>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="size-3" />
-                    {relatedPost.readMinutes} daqiqa
-                  </span>
+      {related.length > 0 && (
+        <section className="mt-16">
+          <h2 className="text-2xl font-bold tracking-tight">O&rsquo;xshash maqolalar</h2>
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {related.map((relatedPost) => (
+              <Card
+                key={relatedPost.slug}
+                className="group overflow-hidden p-0 transition-shadow hover:shadow-lg"
+              >
+                <Link to={`/blog/${relatedPost.slug}`} className="relative block aspect-video">
+                  <img src={relatedPost.image} alt={relatedPost.title} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+                </Link>
+                <div className="flex flex-1 flex-col gap-3 p-5">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge className={cn("border-0", badgeColor(relatedPost.category))}>
+                      {relatedPost.category}
+                    </Badge>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="size-3" />
+                      {relatedPost.readMinutes} daqiqa
+                    </span>
+                  </div>
+                  <Link to={`/blog/${relatedPost.slug}`}>
+                    <h3 className="font-semibold leading-snug transition-colors group-hover:text-primary">
+                      {relatedPost.title}
+                    </h3>
+                  </Link>
+                  <Link
+                    to={`/blog/${relatedPost.slug}`}
+                    className="mt-auto flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  >
+                    O&rsquo;qish
+                    <ArrowRight className="size-3.5" />
+                  </Link>
                 </div>
-                <Link to={`/blog/${relatedPost.slug}`}>
-                  <h3 className="font-semibold leading-snug transition-colors group-hover:text-primary">
-                    {relatedPost.title}
-                  </h3>
-                </Link>
-                <Link
-                  to={`/blog/${relatedPost.slug}`}
-                  className="mt-auto flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-                >
-                  O&rsquo;qish
-                  <ArrowRight className="size-3.5" />
-                </Link>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </section>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

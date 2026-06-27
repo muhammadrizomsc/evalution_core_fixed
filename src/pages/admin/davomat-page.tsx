@@ -56,7 +56,7 @@ const statusButtons: {
 
 export function DavomatPage() {
   const [groupId, setGroupId] = React.useState("frontend-01");
-  const [date, setDate] = React.useState("2025-11-24");
+  const [date, setDate] = React.useState(() => new Date().toISOString().slice(0, 10));
   const [rows, setRows] = React.useState<Row[]>(() =>
     attendanceToday.map((e) => ({ ...e })),
   );
