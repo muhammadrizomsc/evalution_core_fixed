@@ -88,3 +88,9 @@ src/
 
 Barcha ma'lumotlar `src/lib/data.ts` faylidagi mock'lardan olinadi — real backend ulashda shu modulni API chaqiriqlari bilan almashtirish kifoya. Rasmlar `images.unsplash.com` va `i.pravatar.cc` dan yuklanadi.
 # erp-online_maktab
+
+## 👤 Muallif
+
+**Muhammadrizo** — Najot Ta'lim Farg'ona filiali, guruh FN-49 
+
+- GitHub: [@muhammadrizomsc](https://github.com/muhammadrizomsc)
