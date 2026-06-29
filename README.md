@@ -4,7 +4,7 @@ Toshkentdagi IT va dizayn ta'lim markazi uchun to'liq web-platforma: marketing s
 
 ## Texnologiyalar
 
-- **Next.js 15** (App Router, React 19, SSG)
+- **Vite + React 19**
 - **TypeScript**
 - **Tailwind CSS v4**
 - **shadcn/ui** + lucide-react ikonkalari
