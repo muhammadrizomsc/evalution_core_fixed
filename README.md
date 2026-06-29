@@ -21,7 +21,21 @@ Production:
 ```bash
 npm run build
 npm run start
-```
+``
+`
+## 📸 Screenshotlar
+
+### Bosh sahifa
+![Bosh sahifa](./screenshots/home.png)
+
+### Admin panel
+![Admin panel](./screenshots/admin.png)
+
+### Talaba paneli
+![Talaba paneli](./screenshots/student.png)
+
+### Super admin paneli
+![Super admin paneli](./screenshots/superadmin.png)
 
 ## Sahifalar
 
