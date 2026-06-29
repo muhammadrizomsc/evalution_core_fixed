@@ -70,5 +70,5 @@ src/
 
 ## Eslatma
 
-Barcha ma'lumotlar `src/lib/data.ts` faylidagi mock'lardan olinadi — real backend ulashda shu modulni API chaqiriqlari bilan almashtirish kifoya. Rasmlar `images.unsplash.com` va `i.pravatar.cc` dan yuklanadi (`next.config.ts` da ruxsat berilgan).
+Barcha ma'lumotlar `src/lib/data.ts` faylidagi mock'lardan olinadi — real backend ulashda shu modulni API chaqiriqlari bilan almashtirish kifoya. Rasmlar `images.unsplash.com` va `i.pravatar.cc` dan yuklanadi.
 # erp-online_maktab
