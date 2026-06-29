@@ -1,6 +1,8 @@
 # O'quv Markaz
 
-Toshkentdagi IT va dizayn ta'lim markazi uchun to'liq web-platforma: marketing sayti, autentifikatsiya sahifalari va admin boshqaruv paneli.
+🌐 **Live Demo:** [evalution-core-fixed.vercel.app](https://evalution-core-fixed.vercel.app/)
+
+Farg'onagi IT va dizayn ta'lim markazi uchun to'liq web-platforma: marketing sayti, autentifikatsiya sahifalari va admin boshqaruv paneli.
 
 ## Texnologiyalar
 
@@ -13,7 +15,7 @@ Toshkentdagi IT va dizayn ta'lim markazi uchun to'liq web-platforma: marketing s
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+npm run dev      # http://localhost:5173
 ```
 
 Production:
